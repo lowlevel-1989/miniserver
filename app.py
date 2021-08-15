@@ -11,6 +11,8 @@
 import socket
 import time
 
+from uuid import uuid4
+
 from flask import Flask
 from flask import request
 from flask import session
@@ -54,10 +56,12 @@ def index():
         <br/><a href="{login}">login</a>
         <br/><a href="{cookie}">inject cookie</a>
         <br/><a href="{sleep}">sleep</a>
+        <br/><a href="{random}">random with sleep</a>
         <br/><a href="{crash}">division by zero</a>
     '''.format(**{
             'login':  url_for('login'),
             'cookie': url_for('cookie'),
+            'random': url_for('random'),
             'sleep':  url_for('sleep'),
             'crash':  url_for('crash'),
     })
@@ -117,4 +121,14 @@ def sleep():
             Sorry, i think i fell asleep.
             <br/><a href="{index}">index</a>
         '''.format(**{'index': url_for('index')}),
+    )
+
+@app.route('/random')
+def random():
+    time.sleep(30)
+
+    return patch_response('''
+            uuid: {uuid}
+            <br/><a href="{index}">index</a>
+        '''.format(**{'index': url_for('index'), 'uuid': uuid4()}),
     )
