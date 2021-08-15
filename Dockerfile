@@ -1,10 +1,10 @@
-FROM centos:8
+FROM alpine:3.14
 
 WORKDIR /app
 
 COPY requirements.txt app.py .
 
-RUN dnf install python3 -y; pip3 install -r requirements.txt
+RUN apk add python3 py3-pip; pip3 install -r requirements.txt
 
 ENV FLASK_ENV development
 
