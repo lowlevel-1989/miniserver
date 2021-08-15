@@ -8,6 +8,7 @@
 #
 
 import socket
+import time
 
 from flask import Flask
 from flask import request
@@ -38,10 +39,12 @@ def index():
         You are not logged in.
         <br/><a href="{login}">login</a>
         <br/><a href="{cookie}">inject cookie</a>
+        <br/><a href="{sleep}">sleep</a>
         <br/><a href="{crash}">division by zero</a>
     '''.format(**{
             'login':  url_for('login'),
             'cookie': url_for('cookie'),
+            'sleep':  url_for('sleep'),
             'crash':  url_for('crash'),
     })
 
@@ -115,3 +118,20 @@ def cookie():
 def crash():
     1/0
 
+@app.route('/sleep')
+def sleep():
+    time.sleep(60)
+
+    response =  make_response(_body.format(**{
+        'hostname':                    socket.gethostname(),
+        'server_ip':                   request.server[0],
+        'server_port':                 request.server[1],
+        'client_ip':      request.environ['REMOTE_ADDR'],
+        'client_port':    request.environ['REMOTE_PORT'],
+        'response':       '''
+            Sorry, i think i fell asleep.
+            <br/><a href="{index}">index</a>
+        '''.format(**{'index': url_for('index')}),
+    }))
+
+    return response
