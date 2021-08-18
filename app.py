@@ -47,31 +47,53 @@ def patch_response(response):
         'response':                            response,
     }))
 
+# session [server side]
+_session = {}
 
 # flask router
 @app.route('/')
 def index():
     response = '''
         You are not logged in.
-        <br/><a href="{login}">login</a>
+        <br/><a href="{login}">login, client side</a>
+        <br/><a href="{login2}">login, server side</a>
         <br/><a href="{cookie}">inject cookie</a>
         <br/><a href="{sleep}">sleep</a>
         <br/><a href="{random}">random with sleep</a>
         <br/><a href="{crash}">division by zero</a>
     '''.format(**{
-            'login':  url_for('login'),
-            'cookie': url_for('cookie'),
-            'random': url_for('random'),
-            'sleep':  url_for('sleep'),
-            'crash':  url_for('crash'),
+            'login':   url_for('login'),
+            'login2':  url_for('login2'),
+            'cookie':  url_for('cookie'),
+            'random':  url_for('random'),
+            'sleep':   url_for('sleep'),
+            'crash':   url_for('crash'),
     })
 
-    if 'username' in session:
+    if 'id' in session or 'username' in session:
+
+        username = None
+        login_type = '[ client side ]'
+
+        # login with server side
+        if 'id' in session and session['id'] in _session:
+            username = _session[session['id']]['username']
+
+            login_type = '[ server side ]'
+
+        # login with client side
+        elif 'username' in session:
+            username = session['username']
+
+        else:
+            return redirect(url_for('logout'))
+
         response =  '''
-            Logged in as {username}.
+            Logged in as {username}. {login_type}
             <br/><a href="{logout}">logout</a>
         '''.format(**{
-                'username': session['username'],
+                'username':   username,
+                'login_type': login_type,
                 'logout':     url_for('logout'),
         })
 
@@ -80,7 +102,28 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        # session [client side]
         session['username'] = request.form['username']
+        return redirect(url_for('index'))
+
+    return patch_response('''
+                            <form method="post">
+                                <p><input type=text name=username>
+                                <p><input type=submit value=Login>
+                            </form>
+                            '''
+    )
+
+@app.route('/login2', methods=['GET', 'POST'])
+def login2():
+    if request.method == 'POST':
+
+        # session [client side]
+        session['id'] = uuid4().hex
+
+        # session [server side]
+        _session[session['id']] = {}
+        _session[session['id']]['username'] = request.form['username']
         return redirect(url_for('index'))
 
     return patch_response('''
@@ -93,7 +136,14 @@ def login():
 
 @app.route('/logout')
 def logout():
-    # remove the username from the session if it's there
+
+    if 'id' in session:
+
+        if session['id'] in _session:
+            del _session[session['id']]
+
+        session.pop('id')
+
     session.pop('username', None)
     return redirect(url_for('index'))
 
