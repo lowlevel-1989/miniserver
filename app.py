@@ -86,7 +86,7 @@ def index():
             username = session['username']
 
         else:
-            return redirect(url_for('logout'))
+            return patch_response(response)
 
         response =  '''
             Logged in as {username}. {login_type}
