@@ -20,11 +20,18 @@ from flask import url_for
 from flask import redirect
 from flask import make_response
 
+from itsdangerous import URLSafeTimedSerializer
+
+
 app = Flask(__name__)
 
 # Set the secret key to some random bytes. Keep this really secret!
 # python -c 'import os; print(os.urandom(16))'
 app.secret_key = b'[SECRET_KEY_HERE]'
+
+# signer cookie session
+signer = URLSafeTimedSerializer(
+                app.secret_key, 'salt-cookie-session')
 
 # helpers
 _body = '''
@@ -57,6 +64,7 @@ def index():
         You are not logged in.
         <br/><a href="{login}">login, client side</a>
         <br/><a href="{login2}">login, server side</a>
+        <br/><a href="{login3}">login, fake servlet server side</a>
         <br/><a href="{cookie}">inject cookie</a>
         <br/><a href="{sleep}">sleep</a>
         <br/><a href="{random}">random with sleep</a>
@@ -64,22 +72,33 @@ def index():
     '''.format(**{
             'login':   url_for('login'),
             'login2':  url_for('login2'),
+            'login3':  url_for('login3'),
             'cookie':  url_for('cookie'),
             'random':  url_for('random'),
             'sleep':   url_for('sleep'),
             'crash':   url_for('crash'),
     })
 
-    if 'id' in session or 'username' in session:
+    if 'id' in session or \
+            'username' in session or \
+            request.cookies.get('JSESSIONID'):
 
         username = None
         login_type = '[ client side ]'
+
+        _id = request.cookies.get('JSESSIONID')
 
         # login with server side
         if 'id' in session and session['id'] in _session:
             username = _session[session['id']]['username']
 
             login_type = '[ server side ]'
+
+        elif _id and signer.loads(_id) in _session:
+
+            username = _session[signer.loads(_id)]['username']
+
+            login_type = '[ servlet side ]'
 
         # login with client side
         elif 'username' in session:
@@ -101,7 +120,9 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+
     if request.method == 'POST':
+
         # session [client side]
         session['username'] = request.form['username']
         return redirect(url_for('index'))
@@ -118,8 +139,10 @@ def login():
 def login2():
     if request.method == 'POST':
 
+        _id = uuid4().hex
+
         # session [client side]
-        session['id'] = uuid4().hex
+        session['id'] = _id
 
         # session [server side]
         _session[session['id']] = {}
@@ -134,9 +157,36 @@ def login2():
                             '''
     )
 
+# fake java servlet
+@app.route('/login3', methods=['GET', 'POST'])
+def login3():
+    if request.method == 'POST':
+
+        response = make_response(redirect(url_for('index')))
+
+        _id = uuid4().hex
+
+        # session [client side]
+        response.set_cookie('JSESSIONID', signer.dumps(_id))
+
+        # session [server side]
+        _session[_id] = {}
+        _session[_id]['username'] = request.form['username']
+
+        return response
+
+    return patch_response('''
+                            <form method="post">
+                                <p><input type=text name=username>
+                                <p><input type=submit value=Login>
+                            </form>
+                            '''
+    )
+
 @app.route('/logout')
 def logout():
 
+    # logout server side
     if 'id' in session:
 
         if session['id'] in _session:
@@ -144,8 +194,22 @@ def logout():
 
         session.pop('id')
 
+    # logout client side
     session.pop('username', None)
-    return redirect(url_for('index'))
+
+    response = make_response(redirect(url_for('index')))
+
+    # logout servlet
+    _id = request.cookies.get('JSESSIONID')
+
+    if _id:
+        response.delete_cookie('JSESSIONID')
+
+        if signer.loads(_id) in _session:
+            del _session[signer.loads(_id)]
+
+    return response
+
 
 @app.route('/cookie')
 def cookie():
