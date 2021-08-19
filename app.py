@@ -34,7 +34,7 @@ signer = URLSafeTimedSerializer(
                 app.secret_key, 'salt-cookie-session')
 
 # helpers
-_body = '''
+_body_html = '''
     <br/>
     <pre>
         hostname: {hostname}
@@ -44,7 +44,14 @@ _body = '''
     {response}
 '''
 
-def patch_response(response):
+_body_text = '''
+    hostname: {hostname}
+    server:   {server_ip}:{server_port}
+    client:   {client_ip}:{client_port}
+    {response}
+'''
+
+def patch_response(response, _body=_body_html):
     return make_response(_body.format(**{
         'hostname':                    socket.gethostname(),
         'server_ip':                   request.server[0],
@@ -60,6 +67,66 @@ _session = {}
 # flask router
 @app.route('/')
 def index():
+
+    # default text
+    if request.accept_mimetypes['*/*'] == 1:
+
+        response = patch_response('''
+        You are not logged in.
+
+        - login, client side
+        $ curl -v -X POST -d 'username=vinicio' --cookie-jar - http://{server_ip}:{server_port}{login}
+        $ curl -v --cookie 'session=aaaa.bb.cccc' http://{server_ip}:{server_port}
+
+        - login, server side
+        $ curl -v -X POST -d 'username=vinicio' --cookie-jar - http://{server_ip}:{server_port}{login2}
+        $ curl -v --cookie 'session=aaaa.bb.cccc' http://{server_ip}:{server_port}
+
+        - sleep
+        $ curl -v http://{server_ip}:{server_port}{sleep}
+
+        - random with sleep
+        $ curl -v http://{server_ip}:{server_port}{random}
+
+        - vision by zero
+        $ curl -v http://{server_ip}:{server_port}{crash}
+        '''.format(**{
+                'server_ip':        request.server[0],
+                'server_port':      request.server[1],
+
+                'login':            url_for('login'),
+                'login2':           url_for('login2'),
+                'random':           url_for('random'),
+                'sleep':            url_for('sleep'),
+                'crash':            url_for('crash'),
+            }), _body_text)
+
+        if 'id' in session or 'username' in session:
+
+            username = None
+            login_type = '[ client side ]'
+
+            # login with server side
+            if 'id' in session and session['id'] in _session:
+                username = _session[session['id']]['username']
+
+                login_type = '[ server side ]'
+
+            # login with client side
+            elif 'username' in session:
+                username = session['username']
+
+            else:
+                return response
+
+            response =  'Logged in as {username}. {login_type}\n'.format(**{
+                    'username':   username,
+                    'login_type': login_type,
+            })
+
+        return response
+
+    # render html
     response = '''
         You are not logged in.
         <br/><a href="{login}">login, client side</a>
@@ -231,6 +298,12 @@ def crash():
 def sleep():
     time.sleep(60)
 
+    # default text
+    if request.accept_mimetypes['*/*'] == 1:
+        return patch_response('''
+        Sorry, i think i fell asleep.
+        ''', _body_text)
+
     return patch_response('''
             Sorry, i think i fell asleep.
             <br/><a href="{index}">index</a>
@@ -240,6 +313,12 @@ def sleep():
 @app.route('/random')
 def random():
     time.sleep(30)
+
+    # default text
+    if request.accept_mimetypes['*/*'] == 1:
+        return patch_response('''
+        uuid: {uuid}
+        '''.format(**{'uuid': uuid4()}), _body_text)
 
     return patch_response('''
             uuid: {uuid}
