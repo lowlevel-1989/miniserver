@@ -19,3 +19,9 @@ $ docker run -d --rm -it -p 5001:5001 formatcom/miniserver --port 5001
 $ docker run -d --rm -it -p 5002:5002 formatcom/miniserver --port 5002
 $ docker run -d --rm -it -p 5003:5003 formatcom/miniserver --port 5003
 ~~~
+
+#### Desde el navegaro web
+![](browser.png) 
+
+#### Desde curl
+![](curl.png) 
