@@ -82,13 +82,19 @@ def index():
         $ curl -v -X POST -d 'username=vinicio' --cookie-jar - http://{server_ip}:{server_port}{login2}
         $ curl -v --cookie 'session=aaaa.bb.cccc' http://{server_ip}:{server_port}
 
+        - echo
+        $ curl -v http://{server_ip}:{server_port}{echo}
+
+        - upload
+        $ curl -X POST -F "file=@/path/file" http://{server_ip}:{server_port}{upload}
+
         - sleep
         $ curl -v http://{server_ip}:{server_port}{sleep}
 
         - random with sleep
         $ curl -v http://{server_ip}:{server_port}{random}
 
-        - vision by zero
+        - dision by zero
         $ curl -v http://{server_ip}:{server_port}{crash}
         '''.format(**{
                 'server_ip':        request.server[0],
@@ -96,9 +102,11 @@ def index():
 
                 'login':            url_for('login'),
                 'login2':           url_for('login2'),
+                'upload':           url_for('upload'),
                 'random':           url_for('random'),
                 'sleep':            url_for('sleep'),
                 'crash':            url_for('crash'),
+                'echo':             url_for('echo'),
             }), _body_text)
 
         if 'id' in session or 'username' in session:
@@ -133,7 +141,9 @@ def index():
         <br/><a href="{login2}">login, server side</a>
         <br/><a href="{login3}">login, fake servlet server side</a>
         <br/><a href="{cookie}">inject cookie</a>
+        <br/><a href="{echo}">echo</a>
         <br/><a href="{sleep}">sleep</a>
+        <br/><a href="{upload}">upload</a>
         <br/><a href="{random}">random with sleep</a>
         <br/><a href="{crash}">division by zero</a>
     '''.format(**{
@@ -141,8 +151,10 @@ def index():
             'login2':  url_for('login2'),
             'login3':  url_for('login3'),
             'cookie':  url_for('cookie'),
+            'upload':  url_for('upload'),
             'random':  url_for('random'),
             'sleep':   url_for('sleep'),
+            'echo':    url_for('echo'),
             'crash':   url_for('crash'),
     })
 
@@ -325,3 +337,52 @@ def random():
             <br/><a href="{index}">index</a>
         '''.format(**{'index': url_for('index'), 'uuid': uuid4()}),
     )
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload():
+    if request.method == 'POST':
+        filename = "null"
+        size = 0
+        if 'file' in request.files:
+            filename = request.files['file'].filename
+            size     = request.content_length
+        return patch_response(f'filename: {filename} size: {size}')
+
+    html = '''
+    <form method=post enctype=multipart/form-data>
+      <input type=file name=file>
+      <input type=submit value=Upload>
+    </form>
+    '''
+
+    return patch_response(html)
+
+
+@app.route('/echo', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
+def echo():
+    headers = request.headers
+    cookies = request.cookies
+
+    if request.accept_mimetypes['*/*'] == 1:
+        text = '\n\rheaders:\n\r'
+        for k, v in headers.items():
+            text = f'{text}    {k}: {v}\n\r'
+
+        text = f'{text}cookies:\n\r'
+        for k, v in cookies.items():
+            text = f'{text}    {k}: {v}\n\r'
+        text = f'{text}'
+
+        return patch_response(text, _body_text)
+
+    html = '<pre>--headers:<br/>'
+    for k, v in headers.items():
+        html = f'{html}\t<b>{k}</b>: {v}<br/>'
+
+    html = f'{html}--cookies:<br/>'
+    for k, v in cookies.items():
+        html = f'{html}\t<b>{k}</b>: {v}<br/>'
+    html = f'{html}</pre>'
+
+    return patch_response(html)
+
